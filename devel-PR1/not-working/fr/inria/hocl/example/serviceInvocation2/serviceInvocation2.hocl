@@ -1,0 +1,13 @@
+package fr.inria.hocl.example.serviceInvocation2;
+
+
+let serviceInvocation = replace "SERVICE":nameService::String:url::String,<"CALL":nameServiceCalled::String:<"OPERATION":nameOp::String:<currencyFrom::String,currencyTo::String>>>
+									by "SERVICE":nameService:url, <CurrencyConverterClient.invoke(url,currencyFrom,currencyTo)>
+									if (nameService.equalsIgnoreCase(nameServiceCalled))
+
+in
+
+
+<"SERVICE":"CurrencyConverterService":"http://webservice.webserviceshare.com/currencyconverter/rates.asmx",
+<"CALL":"CurrencyConverterService":<"OPERATION":"getRates":<"Euro","CNY">>>,
+serviceInvocation>

@@ -1,0 +1,9 @@
+package fr.inria.hocl.tests.dotProduct;
+
+
+// Use --clone option to compile
+
+let dotProduct = replace "LIST_1":<x::String, ?w>, "LIST_2":<i::int, ?z>, "DOT_PRODUCT":<?l>
+					by   "LIST_1":<w>, "LIST_2":<z>,"DOT_PRODUCT":<l,<x,i>> 
+in
+< dotProduct, "LIST_1":<"a","b","c","d">, "LIST_2":<1,2,3,4>, "DOT_PRODUCT":<>>

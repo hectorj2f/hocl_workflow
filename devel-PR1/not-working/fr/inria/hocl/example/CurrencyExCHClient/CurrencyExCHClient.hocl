@@ -1,0 +1,19 @@
+package fr.inria.hocl.example.CurrencyExCHClient;
+
+let getMaxNumber=
+	replace x::int, y::int
+	by 9
+in
+
+let pass = 
+	replace "PASS":amount::double:nextSteps::String, ?w, s::IOSender
+	by w, s
+	if(s.send(amount,"CurrencyExCHClient",nextSteps))
+in
+	
+<
+	pass,
+	"PASS":1000.00:"CurrencyExCHEuroCNY-CurrencyExCHResult",
+	"PASS":1000.00:"CurrencyExCHEU-CurrencyExCHUSDCNY-CurrencyExCHResult"
+	
+>

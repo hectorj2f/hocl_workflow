@@ -1,0 +1,33 @@
+package fr.inria.hocl.example.CurrencyExCHUSDCNY;
+
+let serviceInvocation = 
+	replace "SERVICE":nameService::String:url::String,<"CALL":nameServiceCalled::String:<"OPERATION":nameOp::String:<currencyFrom::String,currencyTo::String>>>
+	by "SERVICE":nameService:url, "AMOUNT":CurrencyConverterClient.invoke(url,currencyFrom,currencyTo)*0.95
+	if (nameService.equalsIgnoreCase(nameServiceCalled))
+in
+
+let calculate = 
+	replace "AMOUNT":rate::double, "INPUT":s::String:euro::double
+	by "OUTPUT":rate*euro
+in
+
+let generatePassTuple =
+	replace "OUTPUT":num::double, "NEXTSTEPS":s::String
+	by "PASS":num:s
+in
+
+let pass = 
+	replace "PASS":amount::double:nextSteps::String, ?w, s::IOSender
+	by w, s
+	if(s.send(amount,"CurrencyExCHUSDCNY",nextSteps))
+in
+
+<
+	"SERVICE":"CurrencyConverterService":"http://webservice.webserviceshare.com/currencyconverter/rates.asmx",
+	serviceInvocation,calculate,generatePassTuple,pass,
+	<
+		"CALL":"CurrencyConverterService":<
+			"OPERATION":"getRates":<"USD","CNY">
+		>
+	>
+>

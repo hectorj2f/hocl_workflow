@@ -1,0 +1,14 @@
+
+package fr.inria.hocl.tests.ho_rule04_test01;
+
+
+
+<
+	waitFor,
+	("COMPLETED":"ChWS_3":"resultado de ejecutar 3"),
+	("COMPLETED":"ChWS_4":"resultado de ejecutar 4"),
+	("FINISH_WAIT":<
+		
+	>),
+	("COMPLETED":"ChWS_5":"resultado de ejecutar 5")
+>

@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+
+<project basedir="." default="build" name="hocl">
+	
+	<property environment="env"/>
+	<property name="ECLIPSE_HOME" value="${env.ECLIPSE_HOME}"/>
+	<property name="debuglevel" value="source,lines,vars"/>
+	<property name="target" value="1.5"/>
+	<property name="source" value="1.5"/>
+	
+	<path id="hocl.classpath">
+		<pathelement location="bin"/>
+	</path>
+	
+	<path id="eclipse.classpath">
+		<pathelement location="bin"/>
+		<fileset dir="${ECLIPSE_HOME}/plugins" includes="**/*.jar"/>
+	</path>
+	
+	<path id="extra.classpath">
+		<fileset dir="lib-extra/" includes="**/*.jar" />
+	</path>
+	
+	<target name="init">
+		<echo message="Initialising the binary and distribution directories ..."/>
+		<mkdir dir="bin"/>
+		<mkdir dir="dist"/>
+		<copy includeemptydirs="false" todir="bin">
+			<fileset dir="src" excludes="fr/inria/hocl/example/**, fr/inria/hocl/exercise/**, fr/inria/hocl/tests/**, **/*.uad, **/*.ucd, **/*.uld, **/*.upd, **/*.udd, **/*.uod, **/*.usd, **/*.utd, **/*.uud, **/*.odd, **/*.ead, **/*.ecd, **/*.eld, **/*.epd, **/*.edd, **/*.eod, **/*.esd, **/*.etd, **/*.eud, **/*.urd*.uml, **/*.ecore, **/*.launch, **/*.java, **/.svn/"/>
+		</copy>
+	</target>
+	
+	<target name="clean" description="clean the compiled .class files">
+		<echo message="Cleaning the compiled .class files ..."/>
+		<delete dir="bin"/>
+	</target>
+	
+	<target name="distclean" description="clean the distribution files">
+		<echo message="Cleaning the distribution .class and .jar files ..."/>
+		<delete dir="dist/"/>
+	</target>
+	
+	<target name="cleanall" depends="clean,distclean" description="clean all binary files"/>
+	
+	<target name="build" depends="compiler" description="build the core HOCL components"/>
+	
+	<target name="buildall" depends="build-subprojects,build-project" description="build the whole project"/>
+	
+	<target name="all" depends="archive" description="build the whole project and create the distribution files"/>
+	
+	<target name="build-subprojects"/>
+	
+	<target name="cli" depends="init" description="build the interpreter and the shell for HOCL">
+		<echo message="Compiling the interpreter and the shell ..."/>
+		<delete dir="bin/fr/inria/hocl/core/hocli"/>
+		<javac debug="true" debuglevel="${debuglevel}" destdir="bin" source="${source}" target="${target}">
+			<src path="src/fr/inria/hocl/core/hocli"/>
+			<classpath refid="hocl.classpath"/>
+		</javac>
+	</target>
+	
+	<target name="compiler" depends="cli" description="build the HOCL compiler">
+		<echo message="Compiling the HOCL compiler ..."/>
+		<delete dir="bin/fr/inria/hocl/core/hoclc2j"/>
+		<javac debug="true" debuglevel="${debuglevel}" destdir="bin" source="${source}" target="${target}">
+			<src path="src/fr/inria/hocl/core/hoclc2j"/>
+			<classpath refid="hocl.classpath"/>
+		</javac>
+	</target>
+	
+	<target name="example" depends="compiler" description="build the accompanying examples">
+		<echo message="Compiling the examples ..."/>
+		<delete dir="bin/fr/inria/hocl/example"/>
+		<mkdir dir="bin/fr/inria/hocl/example"/>
+		<copy includeemptydirs="false" todir="bin/fr/inria/hocl/example">
+			<fileset dir="src/fr/inria/hocl/example" excludes="**/*.uad, **/*.ucd, **/*.uld, **/*.upd, **/*.udd, **/*.uod, **/*.usd, **/*.utd, **/*.uud, **/*.odd, **/*.ead, **/*.ecd, **/*.eld, **/*.epd, **/*.edd, **/*.eod, **/*.esd, **/*.etd, **/*.eud, **/*.urd*.uml, **/*.ecore, **/*.launch, **/*.java"/>
+		</copy>
+		<javac debug="true" debuglevel="${debuglevel}" destdir="bin" source="${source}" target="${target}" failonerror="false">
+			<src path="src/fr/inria/hocl/example"/>
+			<classpath refid="hocl.classpath"/>
+			<classpath refid="extra.classpath"/>
+		</javac>
+	</target>
+	
+	<target name="exercise" depends="compiler" description="build the accompanying exercises">
+		<echo message="Compiling the exercises ..."/>
+		<delete dir="bin/fr/inria/hocl/exercise"/>
+		<mkdir dir="bin/fr/inria/hocl/exercise"/>
+		<copy includeemptydirs="false" todir="bin/fr/inria/hocl/exercise">
+			<fileset dir="src/fr/inria/hocl/exercise" excludes="**/*.uad, **/*.ucd, **/*.uld, **/*.upd, **/*.udd, **/*.uod, **/*.usd, **/*.utd, **/*.uud, **/*.odd, **/*.ead, **/*.ecd, **/*.eld, **/*.epd, **/*.edd, **/*.eod, **/*.esd, **/*.etd, **/*.eud, **/*.urd*.uml, **/*.ecore, **/*.launch, **/*.java"/>
+		</copy>
+		<javac debug="true" debuglevel="${debuglevel}" destdir="bin" source="${source}" target="${target}" failonerror="false">
+			<src path="src/fr/inria/hocl/exercise"/>
+			<classpath refid="hocl.classpath"/>
+		</javac>
+	</target>
+	
+	<target name="tests" depends="compiler" description="build the accompanying examples">
+		<echo message="Compiling the tests ..."/>
+		<delete dir="bin/fr/inria/hocl/tests"/>
+		<mkdir dir="bin/fr/inria/hocl/tests"/>
+		<copy includeemptydirs="false" todir="bin/fr/inria/hocl/tests">
+			<fileset dir="src/fr/inria/hocl/tests" excludes="**/*.uad, **/*.ucd, **/*.uld, **/*.upd, **/*.udd, **/*.uod, **/*.usd, **/*.utd, **/*.uud, **/*.odd, **/*.ead, **/*.ecd, **/*.eld, **/*.epd, **/*.edd, **/*.eod, **/*.esd, **/*.etd, **/*.eud, **/*.urd*.uml, **/*.ecore, **/*.launch, **/*.java"/>
+		</copy>
+		<javac debug="true" debuglevel="${debuglevel}" destdir="bin" source="${source}" target="${target}" failonerror="false">
+			<src path="src/fr/inria/hocl/tests"/>
+			<classpath refid="hocl.classpath"/>
+		</javac>
+	</target>
+	
+	<target name="build-project" depends="compiler"/>
+	
+	<target name="archive" depends="build" description="create a distributable jar">
+		<echo message="Creating the distributable archive ..."/>
+		<jar destfile="dist/hocl.jar" basedir="bin"/>
+	</target>
+	
+	<target name="archive-all" depends="buildall" description="create a distributable jar with the complete set of HOCL components">
+		<echo message="Creating the distributable archive ..."/>
+		<jar destfile="dist/hocl.jar" basedir="bin"/>
+	</target>
+	
+	<target name="copy-scripts">
+		<echo message="Copying the utility scripts ..."/>
+		<exec executable="cp" dir="./">
+			<arg value="scripts/hoclcompile"/>
+			<arg value="scripts/hoclrun"/>
+			<arg value="scripts/install.sh"/>
+			<arg value="dist/"/>
+		</exec>
+	</target>
+	
+	<target name="dist" depends="archive,copy-scripts" description="create the distribution package"/>
+	
+	<target name="dist-all" depends="archive-all,copy-scripts" description="create the complete distribution package (with all components)"/>
+	
+	<target name="build-refprojects" description="Build all projects which reference this project. Useful to propagate changes."/>
+	
+	<target name="build-eclipse" depends="init" description="build the project for eclipse">
+		<delete dir="bin/fr/inria/hocl/core"/>
+		<javac debug="true" debuglevel="${debuglevel}" destdir="bin" source="${source}" target="${target}">
+			<src path="src"/>
+			<classpath refid="eclipse.classpath"/>
+		</javac>
+	</target>
+	
+	<target name="init-eclipse-compiler" description="copy Eclipse compiler jars to ant lib directory">
+		<copy todir="${ant.library.dir}">
+			<fileset dir="${ECLIPSE_HOME}/plugins" includes="org.eclipse.jdt.core_*.jar"/>
+		</copy>
+		<unzip dest="${ant.library.dir}">
+			<patternset includes="jdtCompilerAdapter.jar"/>
+			<fileset dir="${ECLIPSE_HOME}/plugins" includes="org.eclipse.jdt.core_*.jar"/>
+		</unzip>
+	</target>
+	
+	<target name="build-eclipse-compiler" description="compile project with Eclipse compiler">
+		<property name="build.compiler" value="org.eclipse.jdt.core.JDTCompilerAdapter"/>
+		<antcall target="build-eclipse"/>
+	</target>
+	
+	<target name="Hoclc2j">
+		<java classname="fr.inria.hocl.core.hoclc2j.Hoclc2j" failonerror="true" fork="yes">
+			<classpath refid="hocl.classpath"/>
+		</java>
+	</target>
+	
+</project>
+

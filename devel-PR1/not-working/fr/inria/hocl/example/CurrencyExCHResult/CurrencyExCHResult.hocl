@@ -1,0 +1,9 @@
+package fr.inria.hocl.example.CurrencyExCHResult;
+
+let calculate =
+	replace "INPUT":"CurrencyExCHEuroCNY":x::double, "INPUT":"CurrencyExCHUSDCNY":y::double
+	by "You will pay this much if you pay in CNY instead of USD:":x-y
+in	
+<
+	calculate
+>

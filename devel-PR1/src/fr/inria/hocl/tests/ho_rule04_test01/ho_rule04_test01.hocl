@@ -1,0 +1,13 @@
+package fr.inria.hocl.tests.ho_rule04_test01;
+
+
+
+let waitFor = replace  "FINISH_WAIT":<"COMPLETED":idChWS1::String:result1::String,?w>
+				by 		"FINISH_WAIT":<w>, "COMPLETED":idChWS1:result1
+				
+in
+
+
+
+<waitFor, "FINISH_WAIT":<"COMPLETED":"ChWS_3":"resultado de ejecutar 3","COMPLETED":"ChWS_4":"resultado de ejecutar 4", "COMPLETED":"ChWS_5":"resultado de ejecutar 5">>
+

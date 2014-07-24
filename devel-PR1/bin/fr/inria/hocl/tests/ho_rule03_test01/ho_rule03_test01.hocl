@@ -1,0 +1,25 @@
+package fr.inria.hocl.tests.ho_rule03_test01;
+
+//----------------------------------------------------------------------
+
+// We have to use "--clone" argument for the hoclcompile command. The inner solution has to clone its content and put it into the main solution everytime. 
+
+let reset = replace-one "RESET":<?w>, "LOCKED":value::int,"INVOKE":val::int
+			  by w,"RESET":<w>, "LOCKED":1
+			  if ( value == 0) 
+in			  
+
+let lockReset = replace "LOCKED":value::int, "TMP_VAR":val::String
+					by "LOCKED":0, reset
+					if (value == 1)
+in
+
+
+let proof = replace-one "COMPLETED":res::String
+					by "INVOKE":1
+
+in
+
+
+<"COMPLETED":"1", "RESET":<"TMP_VAR":"12",2,proof>, "LOCKED":0, reset, lockReset >
+

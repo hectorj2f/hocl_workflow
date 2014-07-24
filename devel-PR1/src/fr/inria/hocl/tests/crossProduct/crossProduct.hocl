@@ -1,0 +1,36 @@
+ package fr.inria.hocl.tests.crossProduct;
+
+
+// Not elegant version due to some problems with the current version of hocl compiler
+
+
+let crossProductIt = replace "CROSSA":<x::String, ?w>, "CROSSB":<y::int, ?z>, "CROSS_RESULT":<?l>
+			by "CROSSA":<x, w>, "CROSSB":<z>, "CROSS_RESULT":<<x,y>,l>			
+			
+in
+
+
+let resetCrossB = replace-one "B":<?z>, "CROSSA":<x::String, ?w>
+			by "CROSSB":<z,"#END#">, "B":<z>, "CROSSA":<x, w>
+in
+let endCrossB = replace "CROSSA":<x::String, ?w>, "CROSSB":<"#END#">
+		by "CROSSA":<w>, resetCrossB
+		if (!x.equals("#END#"))
+in		
+
+let remove = replace "CROSS_RESULT":<<"#END#",y::int>, ?l>
+			by "CROSS_RESULT":<l>
+in
+	
+let endCrossProduct = replace "CROSSA":<"#END#">, "CROSSB":<"#END#">, "CROSS_RESULT":<?l>
+		by "CROSS_RESULT":<l>, remove
+in			
+
+
+let crossProductStart = replace-one "A":<?w>, "B":<?z>
+		by "CROSSA":<w,"#END#">, "CROSSB":<z,"#END#">, "CROSS_RESULT":<>,"B":<z>, crossProductIt, endCrossB, endCrossProduct
+in
+
+
+
+<crossProductStart, "A":<"hola","peke", "ela">, "B":<1,2,3>>

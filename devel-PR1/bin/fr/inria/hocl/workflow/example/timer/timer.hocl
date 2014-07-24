@@ -1,0 +1,20 @@
+package fr.inria.hocl.workflow.example.timer;
+
+import fr.inria.hocl.core.hocli.*;
+
+let stopTimer = replace "TIME":value::long, "ELAPSED":val::long, "TIME_WAIT":seconds::int:<?w>
+			 by   "TIME_STATE":"FINISHED", w
+			 if   (value >= seconds)
+			 
+in 
+
+let runTimer = replace "TIME":value::long, "ELAPSED":val::long
+					by "TIME":((System.currentTimeMillis()-val)/1000), "ELAPSED":val 
+in
+
+let init_Timer = replace-one "TIME_WAIT":seconds::int:<?w>
+					by     "TIME":new Long(0), "ELAPSED":System.currentTimeMillis(), "TIME_WAIT":seconds:<w>
+
+in
+
+<init_Timer,runTimer, stopTimer, "TIME_WAIT":60:<"START">>

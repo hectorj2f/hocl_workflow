@@ -1,0 +1,14 @@
+
+package fr.inria.hocl.tests.ho_rule03_test01;
+
+
+
+<
+	lockReset,2,2, proof
+	("RESET":<
+		
+		("TMP_VAR":"12"),2,proof
+	>),
+	("LOCKED":0),reset
+>
+

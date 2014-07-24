@@ -1,0 +1,11 @@
+package fr.inria.hocl.tests.block;
+
+
+let alternate2 =
+  replace  0, "DATA":<(i::Integer):(x::Integer), (j::Integer):(y::Integer),?w>
+       by  0, "DATA":<i:y, j:x, w>
+      
+in
+<
+<alternate2,0,"DATA":<1:10,2:3,3:34,4:9,5:1,6:9,7:10,8:33,9:100,10:5>>
+>

@@ -1,0 +1,148 @@
+package fr.inria.hocl.workflow.example.clientChService;
+
+import fr.inria.hocl.core.hocli.*;
+
+//---------------------------------------- HOCL ENGINE ------------------------------------------------------
+
+// CONDITION_PASS:1 represents "true" and 0 "false".
+
+let passInfo = replace "PASS":idChWS::String:className::String:<?w>	
+                by  "Success_Pass":idChWS
+               if(  (IOSender.send("clientChService",className,w)) )
+in
+
+let passInfoCond = replace "PASS":idChWS::String:className::String:<?w>, "CONDITION_PASS":value::int	
+                by  "Success_Pass_Cond":idChWS, "CONDITION_PASS":value
+               if( (value==1) && (IOSender.send("clientChService",className,w)) )
+in
+
+let passInfoMultCond = replace "PASS":idChWS::String:className::String:<?w>, "CONDITION_PASS":ChWSid::String:value::int	
+                by  "Success_Pass_Cond":idChWS, "CONDITION_PASS":ChWSid:value
+               if( (value==1) && (IOSender.send("clientChService",className,w)) )
+in
+
+
+let passInfoCancel = replace-one (passInfo=m), "CANCEL":<?w>, "CANCEL_ChWS":idChWS::String:className::String
+						by "Success_Cancel"
+						if(  (IOSender.send("clientChService",className,w)) ) 
+in
+
+let putCondInPass = replace "DEST":nameRegService::String:className::String, "RESULT":idChWS::String:result::String, "CONDITION":value::int
+					by "PASS":nameRegService:className:<"COMPLETED":idChWS:result, "CONDITION":value>,"CONDITION":value,"RESULT":idChWS:result
+					if (value == 1)
+in	
+
+let putResultInPass = replace "DEST":nameRegService::String:className::String, "RESULT":idChWS::String:result::String
+					by "PASS":nameRegService:className:<"COMPLETED":idChWS:result>,"RESULT":idChWS:result
+in	
+
+let putInfoInPass = replace-one "INFORMATION":nameRegService::String:className::String:<?w>
+					by "PASS":nameRegService:className:<w>,passInfo					
+in
+
+let putDiscrInPass = replace "DEST":nameRegService::String:className::String, "RESULT":idChWS::String:result::String
+					by "PASS":nameRegService:className:<"DISCRIMINATOR":"Yes","COMPLETED":idChWS:result>
+in
+
+let putContinueInPass = replace "DEST":nameRegService::String:className::String, "RESULT":idChWS::String:result::String
+					by "PASS":nameRegService:className:<"CONTINUE":"Yes","COMPLETED":idChWS:result>	
+in 
+
+let startExecContinue = replace-one "CONTINUE":value::String
+							 by "INVOKE":1
+							 if( value.equals("Yes"))
+in
+
+let startExecDiscriminator = replace-one "DISCRIMINATOR":value::String
+							 by "INVOKE":1
+							 if( value.equals("Yes"))
+in
+
+let startExecSimple = replace-one "COMPLETED":idChWS::String:result::String
+							 by "INVOKE":1,"COMPLETED":idChWS:result							
+in
+
+// WAIT FOR -- Synchronization merge
+
+let putWaitForInPass = replace "DEST":nameRegService::String:className::String, "RESULT":idChWS::String:result::String, "WAITFOR":number::int
+					by "PASS":nameRegService:className:<"WAITFOR":number, "COMPLETED":idChWS:result>, "WAITFOR":number,"RESULT":idChWS:result 
+in
+
+// Replace the RR startExecutionWaitOne, startExecutionWaitTwo and  startExecutionWaitThree.
+
+let waitFor = replace "WAITFOR":number::int, "COMPLETED":idChWS1::String:result1::String, "FINISH_WAIT":<?w>
+				by 		"FINISH_WAIT":<"COMPLETED":idChWS1:result1,w>,	"WAITFOR":(number-1)
+				if  number > 0 
+in
+
+let waitFinished = replace-one "WAITFOR":number::int
+					by   "INVOKE":1
+					if  number == 0
+in 
+
+// Replace 		startExecutionSyncThree, startExecutionSyncTwo.
+	 				
+let synchronize = replace "IN":x::int, "COMPLETED":idChWS1::String:result1::String, "START_INVOCATION":<?w>
+				by "START_INVOCATION":<"COMPLETED":idChWS1:result1,w>, "IN":(x-1)
+				if x > 0
+in				 
+let syncFinished = replace-one "IN":x::int
+					by "INVOKE":1
+					if x == 0  
+in
+
+//---------------------------------------- HOCL ENGINE ------------------------------------------------------
+
+// Library not dynamic
+
+//let startExecutionWaitThree = replace-one  "COMPLETED":idChWS1::String:result1::String,"COMPLETED":idChWS2::String:result2::String,"COMPLETED":idChWS3::String:result3::String, "WAITFOR":number::int
+//							  by "INVOKE":1, "COMPLETED":idChWS1:result1,"COMPLETED":idChWS2:result2, "COMPLETED":idChWS3:result3, "WAITFOR":number
+//							  if (number == 3)
+//in
+//let startExecutionWaitTwo = replace-one  "COMPLETED":idChWS1::String:result1::String,"COMPLETED":idChWS2::String:result2::String, "WAITFOR":number::int
+//							  by "INVOKE":1, "COMPLETED":idChWS1:result1,"COMPLETED":idChWS2:result2, "WAITFOR":number
+//							if(number==2)
+//in
+
+//let startExecutionWaitOne = replace-one  "COMPLETED":idChWS1::String:result1::String, "WAITFOR":number::int
+//							  by "INVOKE":1, "COMPLETED":idChWS1:result1, "WAITFOR":number
+//							  if( number ==1)
+//in
+
+
+//let startExecutionSyncThree = replace-one "COMPLETED":idChWS1::String:result1::String,"COMPLETED":idChWS2::String:result2::String,"COMPLETED":idChWS3::String:result3::String
+//							  by "INVOKE":1, "COMPLETED":idChWS1:result1,"COMPLETED":idChWS2:result2, "COMPLETED":idChWS3:result3
+//in							 				
+//let startExecutionSyncTwo = replace-one "COMPLETED":idChWS1::String:result1::String,"COMPLETED":idChWS2::String:result2::String
+//							  by "INVOKE":1, "COMPLETED":idChWS1:result1,"COMPLETED":idChWS2:result2
+//in			
+
+
+// MULTI-MERGE				
+
+let reset = replace-one "RESET":<?w>, "LOCKED":value::int, "INVOKE":active::int
+			  by w,"RESET":<w>, "LOCKED":1, "INVOKE":active
+			  if ( value == 0) && (active == 1)
+in			  
+
+let lockReset = replace "LOCKED":value::int, "RESULT":idChWS::String:result::String, "Success_Pass":destination::String
+					by reset, "LOCKED":0
+					if (value == 1)
+in
+
+let lockResetCond = replace "LOCKED":value::int, "RESULT":idChWS::String:result::String, "Success_Pass_Cond":destination::String
+					by reset, "LOCKED":0
+					if (value == 1)
+in
+
+let lockResetResult = replace "LOCKED":value::int, "RESULT":idChWS::String:result::String
+					by reset, "LOCKED":0
+					if (value == 1)
+in
+
+
+<
+"PASS":"ChWS_1":"SampleChService1":<"INVOKE":1,"Our",replace-one "RESULT":"ChWS_1":text::String by "CONDITION_PASS":1,"RESULT":"ChWS_1":text,"DEST":"ChWS_3":"SampleChService3","DEST":"ChWS_4":"SampleChService4" if (text.contains("Our") ),
+replace-one "RESULT":"ChWS_1":text::String by "CONDITION_PASS":1, "RESULT":"ChWS_1":text, "DEST":"ChWS_2":"SampleChService2" if (text.contains("The") ),startExecDiscriminator>,
+passInfo>
+

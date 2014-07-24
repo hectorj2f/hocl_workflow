@@ -1,0 +1,13 @@
+package fr.inria.hocl.tests.multipleParams;
+
+let proof = replace-one "PARAM":<"x1":x1::String,"x2":x2::String,"x3":x3::String,"x4":x4::String,"x5":x5::String,"x6":x6::String,"x7":x7::String,"x8":x8::String,"x9":x9::String,"x10":x10::String,"x11":x11::String,?w>
+          by "Salut"
+ 
+in 
+
+let proofMail = replace-one mail::String
+					by "Mail value":mail
+in
+
+<proof, proofMail,"hector@gmail.com", "PARAM":<"x1":"x","x2":"x","x3":"x","x4":"x","x5":"x","x6":"x","x7":"x","x8":"x","x9":"x","x10":"x","x11":"x">>
+	

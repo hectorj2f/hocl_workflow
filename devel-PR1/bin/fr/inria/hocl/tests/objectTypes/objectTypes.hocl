@@ -1,0 +1,41 @@
+package fr.inria.hocl.tests.objectTypes;
+
+
+let proofReturnTuple = replace-one pr::String
+				by ProofObjectTypes.proof(pr)
+in		
+
+let proofProcTuple = replace-one "A":text::String
+				by "IT WORKS":text
+in	
+let proofReturnString = replace-one x::double
+					by "RESULT":"ChWS":<ProofObjectTypes.proofString(x)>
+					
+in	
+let proofProcString = replace-one "RESULT":"ChWS":<result::String>
+					by "IT WORKS":result
+in 
+
+let proofReturnStringArray = replace-one x::int
+						by "RESULT":"ChWS":<ProofObjectTypes.proofStringArray(x)>
+in
+
+let proofProcStringArray = replace-one "RESULT":"ChWS":<"ARRAY":<result::String,?w>>
+					by "IT WORKS":"ARRAY":<result,w>
+in 
+
+let proofReturnSolution = replace-one "PO":x::String
+					by ProofObjectTypes.proofJavaSolution(x)
+in		
+		
+let proofProcSolution = replace-one <"proofReturnSolution":x::String>
+					by "IT WORKS":"proofProcSolution"
+in
+
+let proofReturnInt = replace-one "PO":x::int
+					by ProofObjectTypes.proofInt()
+in								
+<
+	"PO":5, proofReturnInt, proofReturnSolution, proofProcSolution, "PO":"xxxx",16, proofReturnTuple, "proofProcTuple", proofProcTuple, proofReturnStringArray, proofProcStringArray, 2.5, proofReturnString, proofProcString
+	
+>

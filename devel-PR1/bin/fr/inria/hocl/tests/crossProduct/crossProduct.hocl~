@@ -1,0 +1,24 @@
+package fr.inria.hocl.tests.crossProduct;
+
+
+let crossProductIt = replace "CROSSA":<x::String, ?w>, "CROSSB":<y::int, ?z>, "CROSS_RESULT":<?l>
+			by "CROSSA":<x, w>, "CROSSB":<z>, "CROSS_RESULT":<l,<x,y>>
+			
+in
+let resetCrossB = replace-one "B":<?z>
+			by "CROSSB":<z>
+in
+let endCrossB = replace "CROSSA":<x::String, ?w>, "CROSSB":<?l>
+		by "CROSSA":<w>, resetCrossB
+		if (!x.equals("#END#"))
+in			
+let endCrossProduct = replace "CROSSA":<"#END#">, "CROSSB":<"#END#">, "CROSS_RESULT":<?l>
+		by "CROSS_RESULT":<l>
+in			
+
+
+let crossProductStart = replace-one "A":<?w>, "B":<?z>
+		by "CROSSA":<w,>, "CROSSB":<z,"#END#">, "CROSS_RESULT":<>,"B":<z, "#END#">,crossProductIt
+in
+
+<crossProductStart, "A":<"hola","peke", "ela">, "B":<1,2,3>>

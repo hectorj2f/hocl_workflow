@@ -1,0 +1,756 @@
+#!/bin/bash
+
+
+# a fancy colouring scheme
+# to remove the colouring, simply comment out the variables
+readonly COLOUR_OK="\033[1;32m";
+readonly COLOUR_ERR="\033[1;31m";
+readonly COLOUR_LOG="\033[1;34m";
+readonly COLOUR_RESET="\033[0m";
+
+# debug levels
+readonly DBG_TRACE=1;
+readonly DBG_INFO=2;
+readonly DBG_WARNING=3;
+readonly DBG_ERROR=4;
+# boundary constants - refresh them when adding/removing dbg levels
+readonly DBG_MIN_LEVEL=${DBG_TRACE};
+readonly DBG_MAX_LEVEL=${DBG_ERROR};
+
+# exit status codes
+readonly ERR_NO_HOCL=1;
+readonly ERR_ARG_PROBLEM=2;
+readonly ERR_COMP_HOCL_PROBLEM=3;
+readonly ERR_NO_FILES=4;
+readonly ERR_COMP_JAVA_PROBLEM=5;
+
+# argument prefix
+readonly ARG_PREFIX="--";
+
+# HOCL packages nomenclature
+readonly HOCL_ROOT_PKG="fr.inria.hocl";
+readonly HOCL_CORE_PKG="${HOCL_ROOT_PKG}.core";
+readonly HOCL_COMPILER_PKG="${HOCL_CORE_PKG}.hoclc2j";
+readonly HOCL_INTERPRETER_PKG="${HOCL_CORE_PKG}.hocli";
+
+# distribution jar
+readonly HOCL_JAR_FNAME="hocl.jar";
+# DaiosHocl jar
+readonly WF_HOCL_JARS_DIR="wf-module/";
+# default distribution path
+readonly HOCL_DEF_PATH="/usr/lib/hocl";
+# default destination dir
+readonly HOCL_DEF_DEST_DIR='bin';
+
+
+# active debug level
+declare dbg_level=${DBG_WARNING};
+
+# the path the script resides in
+declare script_path="";
+
+# the path to hocl binaries (jar and/or class files)
+declare hoclpath='';
+
+# additional classpath elements
+declare classpath='';
+
+# additional classpath with all jars for wf_module
+declare wf_module_jars='';
+
+# the destination directory for .class files
+declare destdir='';
+
+# the list of files to process
+declare -a list_of_files;
+
+# flag indicating whether to descend the path recursively
+declare recursive=0;
+
+# flag indicating whether to continue in case of errors
+declare force=0;
+
+# flag indicating whether to create new molecules object during the reactions
+declare clone='';
+
+# flag indicating whether to compile server and clients files with RMIC
+declare rmi_compile=0;
+
+# flag central multiset to be connected
+declare cMultiset='';
+
+# Location for the central multiset to be connected
+declare cMultiset_location='';
+
+# the list of Java files to compile with RMIC
+declare -a list_of_Javafiles;
+
+
+#             #
+#  FUNCTIONS  #
+#             #
+
+
+## colour_echo
+# $1 - text to output
+# $2 - colour to use
+colour_echo() {
+	
+	echo -e "${2}${1}${COLOUR_RESET}";
+	return 0;
+	
+}
+
+
+## log_echo
+# $1 - text to output
+log_echo() {
+	
+	colour_echo "${1}" ${COLOUR_LOG};
+	return 0;
+	
+}
+
+
+## ok_echo
+# $1 - text to output
+ok_echo() {
+	
+	colour_echo "${1}" ${COLOUR_OK};
+	return 0;
+	
+}
+
+
+## err_echo
+# $1 - text to output
+err_echo() {
+	
+	colour_echo "${1}" ${COLOUR_ERR};
+	return 0;
+	
+}
+
+
+## debug
+# $1 - debug message level
+# $2 - debug message
+# print a debug message if debug is enabled
+# returns 0 - if the message was printed
+#         1 - otherwise
+debug() {
+	
+	local msg_level=${1};
+	local msg_text="${2}";
+	local level_text='';
+	
+	if [[ ${msg_level} -lt ${dbg_level} ]]; then
+		return 1;
+	fi
+	
+	if [[ ${msg_level} -eq ${DBG_ERROR} ]]; then
+		echo "$(err_echo "ERR:") ${msg_text}";
+		return 0;
+	fi
+	
+	case ${msg_level} in
+		${DBG_TRACE})
+			level_text='TRC';
+			;;
+		${DBG_INFO})
+			level_text='INF';
+			;;
+		${DBG_WARNING})
+			level_text='WRN';
+			;;
+	esac
+	
+	echo "$(log_echo "${level_text}:") ${msg_text}";
+	return 0;
+	
+}
+
+
+## abs_path
+# $1 - the path to get the absolute path for
+# finds the absolute path for a given path
+# and propagates it through the 'echo' command
+# returns 0 - if the path has been found
+#         1 - otherwise
+abs_path() {
+	
+	local pth="${1}";
+	
+	if [[ -z "${pth}" ]]; then
+		return 1;
+	fi
+	
+	if [[ ${pth:0:1} == "/" ]]; then
+		echo "${pth}";
+	else
+		echo "$(pwd)/${pth}";
+	fi
+	
+	return 0;
+	
+}
+
+
+## set_script_path
+# $1 - path to the script
+# sets the script_path variable
+# returns 0 - always
+set_script_path() {
+	
+	if [[ -h ${1} ]]; then
+		script_path=$(dirname $(readlink ${1}));
+		if [[ "${script_path:0:1}" == "." ]]; then
+			script_path="$(dirname ${1})/${script_path}";
+		fi
+	else
+		script_path=$(dirname ${1});
+	fi
+	
+	script_path=$(abs_path "${script_path}");
+	debug ${DBG_TRACE} "script path: ${script_path}";
+	
+	return 0;
+	
+}
+
+
+## classpath_add
+# $1 - the path to add
+# appends the given path to the classpath
+# returns 0 - if the path has been added
+#         1 - otherwise
+classpath_add() {
+	
+	local path="${1}";
+	local pos=1;
+	local sngle_path;
+	
+	if [[ -z "${path}" ]]; then
+		return 1;
+	fi
+	
+	single_path="$(echo "${path}" | awk "BEGIN {FS=\":\"}; {print \$${pos}}")";
+	while [[ -n "${single_path}" ]]; do
+		single_path="$(abs_path "${single_path}")";
+		if [[ -z ${classpath} ]]; then
+			classpath=${single_path};
+		else
+			classpath="${classpath}:${single_path}";
+		fi
+		(( pos++ ));
+		single_path="$(echo "${path}" | awk "BEGIN {FS=\":\"}; {print \$${pos}}")";
+	done
+	
+	debug ${DBG_TRACE} "classpath = ${classpath}";
+	
+	return 0;
+	
+}
+
+
+## check_hoclc2j
+# $1 - the path to check
+# checks whether the Hoclc2j class is present in the given path
+# if it is, the funtion sets the hoclpath global variable
+# returns 0 - if the class exists there
+#         1 - otherwise
+check_hoclc2j() {
+	
+	local path="${1}";
+	
+	
+	debug ${DBG_TRACE} "checking path '${path}'...";
+	
+	if [[ -z "${path}" ]]; then
+		return 1;
+	fi
+	
+	path="$(abs_path "${path}")";
+	
+
+	for i in `find ${path}/${WF_HOCL_JARS_DIR} -name "*jar"`
+	do
+  		
+  		wf_module_jars=${wf_module_jars}":$i";
+	done
+	
+	
+	
+
+	if [[ -f "${path}/${HOCL_JAR_FNAME}" ]]; then
+		hoclpath="${path}/${HOCL_JAR_FNAME}";
+		classpath_add ${hoclpath};
+		return 0;
+	fi
+	
+	if [[ -d "${path}/${HOCL_COMPILER_PKG//.//}" ]]; then
+		hoclpath="${path}";
+		classpath_add ${hoclpath};
+		return 0;
+	fi
+	
+	return 1;
+	
+}
+
+
+## find_hocl
+# takes no arguments
+# tries to find the path to the hocl binaries
+# returns 0 - if the path has been found
+#         dies otherwise
+find_hocl() {
+	
+	# if $hoclpath is not an empty string, the binaries have
+	# already been found
+	if [[ -n "${hoclpath}" ]]; then
+		return 0;
+	fi
+	
+	for p in "${HOCL_PATH}" "." "${script_path}" "${HOCL_DEF_PATH}"; do
+		if check_hoclc2j ${p}; then
+			debug ${DBG_INFO} "HOCL path: ${hoclpath}";
+			return 0;
+		fi
+	done
+	
+	debug ${DBG_ERROR} "The HOCL library has not been found!";
+	debug ${DBG_ERROR} "Please either set the HOCL_PATH env variable or put the HOCL binaries in:";
+	debug ${DBG_ERROR} "a) ./";
+	debug ${DBG_ERROR} "b) ${script_path}";
+	debug ${DBG_ERROR} "c) ${HOCL_DEF_PATH}";
+	echo;
+	exit ${ERR_NO_HOCL};
+	
+}
+
+
+## usage
+# takes no arguments
+# prints a help screen and exits
+# dies always
+usage() {
+	
+	echo "hoclcompile - a utility to translate hocl programs into java code and compile";
+	echo "them into Java ByteCode";
+	echo "";
+	echo "Usage: hoclcompile [${ARG_PREFIX}debug level][${ARG_PREFIX}hocl-path path][${ARG_PREFIX}recursive]";
+	echo "                   [${ARG_PREFIX}classpath path][${ARG_PREFIX}jars path][${ARG_PREFIX}destdir path][files...]";
+	printf "  %-20s the level of verboseness:\n" "${ARG_PREFIX}debug level";
+	printf "  %-20s   4 - print only errors (always active)\n" " ";
+	printf "  %-20s   3 - print also warnings\n" " ";
+	printf "  %-20s   2 - add info messages to the output\n" " ";
+	printf "  %-20s   1 - be very verbose and print everything\n" " ";
+	printf "  %-20s the directory where the hocl binaries are located\n" "${ARG_PREFIX}hocl-path path";
+	printf "  %-20s find hocl files recursively in all sub-dirs\n" "${ARG_PREFIX}recursive";
+	printf "  %-20s supply additional classpath elements\n" "${ARG_PREFIX}classpath path";
+	printf "  %-20s append all jars found in path to the classpath\n" "${ARG_PREFIX}jars path";
+	printf "  %-20s specify the destination dir for .class files\n" "${ARG_PREFIX}destdir path";
+	printf "  %-20s force execution even in case of errors\n" "${ARG_PREFIX}force";
+	printf "  %-20s clone molecules when the reaction takes place\n" "${ARG_PREFIX}clone";
+	printf "  %-20s central multiset to be connected\n" "${ARG_PREFIX}cMultiset";
+	printf "  %-20s compile with RMIC server and clients files\n" "${ARG_PREFIX}rmi";
+	printf "  %-20s this help screen\n" "${ARG_PREFIX}help";
+	printf "  %-20s the list of hocl files to be processed.\n" "files ...";
+	printf "  %-20s If omitted, all hocl files in the current dir\n" " ";
+	printf "  %-20s will be used\n" " ";
+
+	exit;
+	
+}
+
+
+## file_add_to_list
+# $1 - the path to the file to add
+# adds the file to the list of files to process
+# returns 0 - if the file has been added
+#         1 - otherwise
+file_add_to_list() {
+	
+	local fname="${1}";
+	local depth="";
+	local -a dirlist;
+	local len=${#list_of_files[*]};
+	
+	# check whether a file name was supplied
+	if [[ -z "${fname}" ]]; then
+		debug ${DBG_TRACE} "file_add_to_list - fname empty";
+		return 1;
+	fi
+	
+	# check whether the file exists
+	if [[ ! -a "${fname}" ]]; then
+		debug ${DBG_TRACE} "file_add_to_list - fname ${fname} does not exist";
+		return 1;
+	fi
+	
+	# check whether the file is a directory
+	if [[ -d "${fname}" ]]; then
+		# get the list of files in the dir
+		# if recursive is on, get all the files
+		# if not, list only the current dir
+		if [[ ${recursive} -eq 0 ]]; then
+			depth='-maxdepth 1';
+		fi
+		# get all .hocl files, except the ones called expectedResult.hocl
+		dirlist=( $(find "${fname}" ${depth} -iname '*.hocl' -and \! -iname expectedresult.hocl 2>/dev/null) );
+		for (( i=0; i < ${#dirlist[*]}; i++ )); do
+			list_of_files[${len}]="${dirlist[${i}]}";
+			len=${#list_of_files[*]};
+		done
+		if [[ ${#dirlist[*]} -eq 0 ]]; then
+			debug ${DBG_TRACE} "file_add_to_list - no files have been found in ${fname}";
+			return 1;
+		else
+			return 0;
+		fi
+	fi
+	
+	# check the file is an hocl one and it is not expectedResult.hocl
+	find "${fname}" -iname '*.hocl' -and \! -iname expectedresult.hocl 2>/dev/null 1>/dev/null;
+	if [[ $? -ne 0 ]]; then
+		debug ${DBG_TRACE} "file_add_to_list - fname ${fname} is not a valid hocl file";
+		return 1;
+	fi
+	
+	list_of_files[${len}]="${fname}";
+	return 0;
+	
+}
+
+
+## arg_check_no
+# $1 - the name of the parameter to check
+# $2 - the number of required args
+# $3 - total number of args left to process
+# checks whether the parameter has been supplied with the correct number of args
+# returns 0 - if there are enough arguments left
+#         dies otherwise
+arg_check_no() {
+	
+	local param_name="${1}";
+	local no_req="${2}";
+	local no_total="${3}";
+	
+	if [[ ${no_total} -lt $(( ${no_req} + 1 )) ]]; then
+		debug ${DBG_ERROR} "Argument error: ${param_name} needs at least ${no_req} argument(s)!";
+		exit ${ERR_ARG_PROBLEM};
+	fi
+	
+	return 0;
+	
+}
+
+
+## arg_process
+# consumes all the command-line arguments given to the script
+# processes the command-line arguments and sets the according variables
+# returns 0 - if all the arguments have been parsed successfully
+#         dies otherwise
+arg_process() {
+	
+	local no_args;
+	
+	debug ${DBG_TRACE} "processing arguments ...";
+	
+	while [[ "x${1}" != "x" ]]; do
+		no_args=0;
+		case ${1} in
+			${ARG_PREFIX}debug)
+				no_args=1;
+				arg_check_no debug ${no_args} $#;
+				if [[ ${2} -eq 0 ]]; then
+					debug ${DBG_ERROR} "The debug level must be a number between ${DBG_MIN_LEVEL} and ${DBG_MAX_LEVEL}!";
+					exit ${ERR_ARG_PROBLEM};
+				elif [[ ${2} -lt ${DBG_MIN_LEVEL} ]]; then
+					debug ${DBG_WARNING} "debug level ${2} too low. Setting it to: ${DBG_MIN_LEVEL}";
+					dbg_level=${DBG_MIN_LEVEL};
+				elif [[ ${2} -gt ${DBG_MAX_LEVEL} ]]; then
+					debug ${DBG_WARNING} "debug level ${2} too high. Setting it to: ${DBG_MAX_LEVEL}";
+					dbg_level=${DBG_MAX_LEVEL};
+				else
+					debug ${DBG_TRACE} "setting debug level to ${2} ...";
+					dbg_level=${2};
+				fi
+				;;
+			${ARG_PREFIX}hocl-path)
+				no_args=1;
+				arg_check_no hocl-path ${no_args} $#;
+				if check_hoclc2j ${2}; then
+					debug ${DBG_INFO} "HOCL path: ${hoclpath}";
+				else
+					debug ${DBG_WARNING} "HOCL binaries not found in ${2}, will search elsewhere";
+				fi
+				;;
+			${ARG_PREFIX}recursive)
+				debug ${DBG_TRACE} "switching to recursive mode ...";
+				recursive=1;
+				;;
+			${ARG_PREFIX}classpath)
+				no_args=1;
+				arg_check_no classpath ${no_args} $#;
+				classpath_add "${2}";
+				;;
+			${ARG_PREFIX}cMultiset)
+				no_args=1;
+				arg_check_no cMultiset ${no_args} $#;
+				cMultiset='-cMultiset';
+				cMultiset_location="${2}";
+				#echo -en ">>> cMultiset ${cMultiset}  cMultiset_location  ${cMultiset_location} \x0d";
+				;;
+			${ARG_PREFIX}jars)
+				no_args=1;
+				arg_check_no jars ${no_args} $#;
+				if [[ -d "${2}" ]]; then
+					debug ${DBG_TRACE} "finding all the jars in ${2} and adding them to the classpath ...";
+					for ifp in $(find "${2}" -iname '*.jar'); do
+						classpath_add "${ifp}";
+					done
+				fi
+				;;
+			${ARG_PREFIX}destdir)
+				no_args=1;
+				arg_check_no destdir ${no_args} $#;
+				destdir="${2}";
+				destdir="$(abs_path "${destdir}")";
+				if [[ ! -e ${destdir} ]]; then
+					mkdir -p ${destdir};
+				fi
+				;;
+			${ARG_PREFIX}force)
+				force=1;
+				;;
+			${ARG_PREFIX}clone)			  
+				clone='-clone';			
+				;;
+			${ARG_PREFIX}rmi)			  
+				rmi_compile=1;			
+				;;
+			${ARG_PREFIX}help)
+				usage;
+				;;
+			${ARG_PREFIX}*)
+				debug ${DBG_ERROR} "Unknown argument: ${1}! Use ${0} ${ARG_PREFIX}help for more info.";
+				exit ${ERR_ARG_PROBLEM};
+				;;
+			*)
+				if file_add_to_list "${1}"; then
+					debug ${DBG_TRACE} "file ${1} added to the list of files to process.";
+				else
+					debug ${DBG_WARNING} "Could not add ${1} to the list of files to process!";
+				fi
+				;;
+		esac
+		shift ${no_args};
+		shift 1;
+	done
+	
+}
+
+
+
+#                  #
+# SCRIPT BEGINNING #
+#                  #
+
+declare no_ok=0;
+declare no_ok_rmic=0;
+declare -a errs src_dirs errs_dirs;
+declare dest_switch='';
+declare lenRMIFiles=0;
+
+
+arg_process $*;
+set_script_path ${0};
+find_hocl;
+
+
+
+# if no file has been specified by the user, add all the files in the current dir
+if [[ ${#list_of_files[*]} -eq 0 ]]; then
+	file_add_to_list ".";
+fi
+
+# check that there are files to compile
+if [[ ${#list_of_files[*]} -eq 0 ]]; then
+	debug ${DBG_ERROR} "There are no files to compile!";
+	exit ${ERR_NO_FILES};
+fi
+
+
+# compilation of the hocl source files
+
+len=${#list_of_files[*]};
+for (( index=0; index < ${len}; index++ )); do
+	echo -en ": Compiling file $(( ${index} + 1 )) of ${len} ...\x0d";
+	
+	errs[${index}]=$(java -classpath ${classpath} ${HOCL_COMPILER_PKG}.Hoclc2j ${clone} ${cMultiset} ${cMultiset_location} ${list_of_files[${index}]} 2>&1);
+	if [[ ${#errs[${index}]} -eq 0 ]]; then
+	
+		(( no_ok++ ));
+	fi
+done
+
+echo "";
+
+for (( index=0; index < ${len}; index++ )); do
+	if [[ ${#errs[${index}]} -eq 0 ]]; then
+		continue;
+	fi
+	debug ${DBG_ERROR} "$(log_echo "${list_of_files[${index}]}")";
+	printf "%s\n" "${errs[${index}]}";
+done
+
+if [[ ${rmi_compile} -eq 1 ]]; then
+		# get all .Java files, except the ends with .hocl
+		
+		dirlist=( $(find *.java -maxdepth 1 -iname '*.java' 2>/dev/null) );
+
+	#	echo ": Files file ${#dirlist[*]} ...";
+		
+		for (( i=0; i < ${#dirlist[*]}; i++ )); do
+	#		echo ": File detected file ${dirlist[${i}]} ...";	
+			list_of_Javafiles[${i}]="${dirlist[${i}]}";			
+		done
+		
+
+	for (( index=0; index < ${#dirlist[*]}; index++ )); do
+
+	#	echo ": Compiling RMI file ${list_of_Javafiles[${index}]} .";	
+		if [[ "${list_of_Javafiles[${index}]}" == *Srv.java*  ||  "${list_of_Javafiles[${index}]}" == *Clt.java* ]]; then
+	 #	echo ": Condition satisfied file ${list_of_Javafiles[${index}]} ";	
+	
+	
+	  #      echo ": rmic -classpath ${classpath} ${HOCL_COMPILER_PKG}.Hoclc2j ${list_of_Javafiles[${indexf}]} .";
+	
+			errs[${index}]=$(rmic -classpath ${classpath} ${HOCL_COMPILER_PKG}.Hoclc2j ${list_of_Javafiles[${indexf}]} 2>&1 1 > /dev/null);
+	
+			(( lenRMIFiles++));
+			
+			if [[ ${#errs[${index}]} -eq 0 ]]; then
+		
+				(( no_ok_rmic++ ));
+			fi
+		fi
+	done
+fi
+
+echo ""; 
+
+log_echo "HOCL TO JAVA SUMMARY:";
+echo "Total number of hocl source files: $(log_echo "${len}")";
+echo "         Number of compiled files: $(ok_echo "${no_ok}")";
+echo "      Number of files with errors: $(err_echo "$(( ${len} - ${no_ok} ))")";
+if [[ ${rmi_compile} -eq 1 ]]; then
+	echo "         Number of RMI compiled files: $(ok_echo "${no_ok_rmic}")";
+	echo "      Number of RMI files with errors: $(err_echo "$(( ${lenRMIFiles} - ${no_ok_rmic} ))")";
+fi
+if [[ ${no_ok} -ne ${len} && ${force} -eq 0 ]]; then
+	debug ${DBG_ERROR} "There were some errors. Please correct them before continuing.";
+	exit ${ERR_COMP_HOCL_PROBLEM};
+fi
+
+
+# compilation of java sources
+
+if [[ -n "${destdir}" ]]; then
+	dest_switch="-d ${destdir}";
+	classpath_add "${destdir}";
+elif [[ -n "${HOCL_DEST_DIR}" ]]; then
+	if [[ ! -e "${HOCL_DEST_DIR}" ]]; then
+		mkdir -p "${HOCL_DEST_DIR}";
+	fi
+	dest_switch="-d ${HOCL_DEST_DIR}";
+	classpath_add "${HOCL_DEST_DIR}";
+else
+	if [[ ! -e "${HOCL_DEF_DEST_DIR}" ]]; then
+		mkdir -p "${HOCL_DEF_DEST_DIR}";
+	fi
+	dest_switch="-d ${HOCL_DEF_DEST_DIR}";
+	classpath_add "${HOCL_DEF_DEST_DIR}";
+fi
+
+for (( index=0; index < ${#list_of_files[*]}; index++ )); do
+	adir=$(dirname ${list_of_files[${index}]});
+	len=${#src_dirs[*]};
+	for (( jdex=0; jdex < ${len}; jdex++ )); do
+		if [[ "${adir}" == "${src_dirs[${jdex}]}" ]]; then
+			continue 2;
+		fi
+	done
+	src_dirs[${len}]="${adir}";
+done
+
+echo "";
+
+len=${#src_dirs[*]};
+no_ok=0;
+for (( index=0; index < ${len}; index++ )); do
+	echo -en ": Compiling directory $(( ${index} + 1 )) of ${len} ...\x0d";
+echo " ${classpath}${wf_module_jars}:${src_dirs[${index}]}";	
+errs_dirs[${index}]=$(javac -classpath ${classpath}${wf_module_jars}:${src_dirs[${index}]} ${dest_switch} ${src_dirs[${index}]}/*.java 2>&1);
+	if [[ ${#errs_dirs[${index}]} -eq 0 ]]; then
+		(( no_ok++ ));
+	fi
+done
+
+echo "";
+
+for (( index=0; index < ${#src_dirs[*]}; index++ )); do
+	if [[ ${#errs_dirs[${index}]} -eq 0 ]]; then
+		continue;
+	fi
+	debug ${DBG_ERROR} "$(log_echo "${src_dirs[${index}]}")";
+	printf "%s\n" "${errs_dirs[${index}]}";
+done
+
+log_echo "JAVA TO BYTECODE SUMMARY:";
+echo "Total number of source directories: $(log_echo "${len}")";
+echo "    Number of compiled directories: $(ok_echo "${no_ok}")";
+echo " Number of directories with errors: $(err_echo "$(( ${len} - ${no_ok} ))")";
+
+if [[ ${no_ok} -ne ${len} ]]; then
+	debug ${DBG_ERROR} "There were some errors. Please correct them before continuing.";
+	exit ${ERR_COMP_JAVA_PROBLEM};
+fi
+
+
+# generation of the runnable scripts
+
+echo;
+
+len=${#list_of_files[*]};
+
+for (( index=0; index < ${len}; index++ )); do
+	echo -en ": Creating runnable script $(( ${index} + 1 )) of ${len} ...\x0d";
+	# extract the file's package name
+	pkg="$(grep "^package" ${list_of_files[${index}]} | head -1 | awk '{print $2}' | sed -e 's/;//g')";
+	# construct the class' name and script's file name
+	base_fname="$(basename ${list_of_files[${index}]} | sed -e 's/\.hocl//g')";
+	script_fname="$(dirname ${list_of_files[${index}]})/run-${base_fname}.sh";
+	class_name="Run$(perl -e "print ucfirst(\"${base_fname}\")")_gen";
+	touch "${script_fname}" 2>/dev/null;
+	if [[ $? -ne 0 ]]; then
+		continue;
+	fi
+	chmod +x "${script_fname}";
+	# fill the runnable script
+	echo '#!/bin/bash' > "${script_fname}";
+	
+	if [[ ${rmi_compile}  -eq 1 ]]; then
+		echo "java -classpath ${classpath}${wf_module_jars}:$(abs_path "$(dirname ${list_of_files[${index}]})") " -Djava.rmi.server.codebase="'"file:$(abs_path "$(dirname ${list_of_files[0]})")/${HOCL_DEF_DEST_DIR}/ file:${HOCL_DEF_PATH}/${HOCL_JAR_FNAME}"'" -Djava.rmi.server.hostname=localhost -Djava.security.policy=${HOCL_DEF_PATH}/rmi/no.policy "${pkg}.${class_name};" >> "${script_fname}";
+	else
+		echo "java -classpath ${classpath}${wf_module_jars}:$(abs_path "$(dirname ${list_of_files[${index}]})") ${pkg}.${class_name};" >> "${script_fname}";
+	fi
+	
+	echo 'exit $?;' >> "${script_fname}";
+done
+
+echo;
+
+exit;

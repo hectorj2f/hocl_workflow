@@ -1,0 +1,140 @@
+#!/bin/bash
+
+
+# a fancy colouring scheme
+# to remove the colouring, simply comment out the variables
+readonly COLOUR_OK="\033[1;32m";
+readonly COLOUR_ERR="\033[1;31m";
+readonly COLOUR_LOG="\033[1;34m";
+readonly COLOUR_RESET="\033[0m";
+
+
+# the hocl file name to run
+declare fname;
+
+
+
+#             #
+#  FUNCTIONS  #
+#             #
+
+
+## colour_echo
+# $1 - text to output
+# $2 - colour to use
+colour_echo() {
+	
+	echo -e "${2}${1}${COLOUR_RESET}";
+	return 0;
+	
+}
+
+
+## log_echo
+# $1 - text to output
+log_echo() {
+	
+	colour_echo "${1}" ${COLOUR_LOG};
+	return 0;
+	
+}
+
+
+## ok_echo
+# $1 - text to output
+ok_echo() {
+	
+	colour_echo "${1}" ${COLOUR_OK};
+	return 0;
+	
+}
+
+
+## err_echo
+# $1 - text to output
+err_echo() {
+	
+	colour_echo "${1}" ${COLOUR_ERR};
+	return 0;
+	
+}
+
+
+## abs_path
+# $1 - the path to get the absolute path for
+# finds the absolute path for a given path
+# and propagates it through the 'echo' command
+# returns 0 - if the path has been found
+#         1 - otherwise
+abs_path() {
+	
+	local pth="${1}";
+	
+	if [[ -z "${pth}" ]]; then
+		return 1;
+	fi
+	
+	if [[ ${pth:0:1} == "/" ]]; then
+		echo "${pth}";
+	else
+		echo "$(pwd)/${pth}";
+	fi
+	
+	return 0;
+	
+}
+
+
+
+#                  #
+# SCRIPT BEGINNING #
+#                  #
+
+
+declare -a flist;
+
+if [[ "${1}" == "-h" || "${1}" == "--help" ]]; then
+	echo "hoclrun - a utility to run hocl programs.";
+	echo "Usage: ${0} [path_to_hocl_file]";
+	echo "path_to_hocl_file can either be the path to the source code of an hocl";
+	echo "program or a directory in which to search the source files for. If no";
+	echo "path is given, hoclrun searches the current working directory for hocl";
+	echo "source code files.";
+	exit;
+fi
+
+if [[ -n "${1}" ]]; then
+	fname="$(abs_path "${1}")";
+else
+	fname="$(pwd)";
+fi
+
+flist=( $(find "${fname}" -maxdepth 1 -iname '*.hocl' -and \! -iname expectedresult.hocl 2>/dev/null) );
+
+if [[ ${#flist[*]} -gt 1 ]]; then
+	echo "$(err_echo "ERR:") There's more than one hocl file! Please supply one of the";
+	echo "$(err_echo "ERR:") following files as argument to hoclrun:";
+	for (( index=0; index < ${#flist[*]}; index++ )); do
+		echo "$(err_echo "ERR:") $(( ${index} + 1 )). ${flist[${index}]}";
+	done
+	exit 1;
+elif [[ ${#flist[*]} -eq 0 ]]; then
+	if [[ -d "${fname}" ]]; then
+		echo "$(err_echo "ERR:") No valid hocl file was found in ${fname}!";
+	else
+		echo "$(err_echo "ERR:") ${fname} is not a valid hocl file!";
+	fi
+	exit 1;
+fi
+
+fname="${flist[0]}";
+base_fname="$(basename ${fname} | sed -e 's/\.hocl//g')";
+script_fname="$(dirname ${fname})/run-${base_fname}.sh";
+
+if [[ -e "${script_fname}" ]]; then
+ . ${script_fname};
+else
+	echo "$(err_echo "ERR:") You need to compile the program first! Please use hoclcompile.";
+	exit 1;
+fi
+
